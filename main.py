@@ -18,6 +18,7 @@ import subprocess
 import sys
 from pathlib import Path
 import re
+import shutil
 
 
 NAME = "temifi"
@@ -40,8 +41,33 @@ def c(text: str, color: str) -> str:
 
 
 def require_root() -> None:
+	# Windows lacks geteuid; warn and skip strict check there.
+	if os.name == "nt":
+		print(c("[!] Skipping root check on Windows; use an elevated PowerShell if drivers/tools permit.", "yellow"))
+		return
 	if os.geteuid() != 0:
 		print(c("[!] Run this script with sudo/root privileges.", "red"))
+		sys.exit(1)
+
+
+def require_linux_tools() -> None:
+	if os.name != "posix":
+		print(c("[!] This tool targets Linux (e.g., Kali). Windows lacks the required Wi-Fi tooling.", "red"))
+		print(c("[i] Run inside Kali/Ubuntu with aircrack-ng suite installed.", "yellow"))
+		sys.exit(1)
+	needed = [
+		"ip",
+		"iw",
+		"iwconfig",
+		"ethtool",
+		"airmon-ng",
+		"airodump-ng",
+		"aireplay-ng",
+	]
+	missing = [cmd for cmd in needed if shutil.which(cmd) is None]
+	if missing:
+		print(c(f"[!] Missing required tools: {', '.join(missing)}", "red"))
+		print(c("[i] Install aircrack-ng suite and ensure commands are in PATH.", "yellow"))
 		sys.exit(1)
 
 
@@ -412,6 +438,7 @@ def menu(mon_iface: str) -> None:
 
 def main() -> None:
 	print(c(f"{NAME} v{VERSION} - authorized Wi-Fi testing helper", "bold"))
+	require_linux_tools()
 	require_root()
 	adapter = choose_interface()
 	mon_iface = enable_monitor_mode(adapter)
